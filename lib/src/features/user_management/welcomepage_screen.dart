@@ -1,14 +1,18 @@
+// lib/src/features/user_management/welcome_page.dart
 import 'package:flutter/material.dart';
 import 'signup_screen.dart';
 import 'login_screen.dart';
+import '../../core/theme/theme.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final colors = appColors;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFBFC),
+      backgroundColor: colors.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 30.0),
@@ -17,95 +21,89 @@ class WelcomePage extends StatelessWidget {
             children: [
               const Spacer(flex: 2),
 
-              // --- LOGO SECTION ---
-              Center(
-                child: SizedBox(
-                  height: 220, // Increased size slightly for better visibility
-                  width: 220,
-                  child: Padding(
-                    padding: const EdgeInsets.all(5.0),
-                    child: Image.asset(
-                      'assets/icons/sakhi icons/sakhi.png',
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(Icons.error, color: Colors.red);
-                      },
-                    ),
-                  ),
+              // --- LOGO ---
+              SizedBox(
+                height: 220,
+                width: 220,
+                child: Image.asset(
+                  'assets/icons/sakhi icons/sakhi.png',
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Uses the error color defined in your theme
+                    return Icon(
+                      Icons.error,
+                      color: colors.error,
+                      size: 50,
+                    );
+                  },
                 ),
               ),
 
               const SizedBox(height: 40),
 
-              // App Name - Staresso Demo
-              const Text(
+              // --- APP NAME ---
+              Text(
                 'Sakhi',
                 style: TextStyle(
-                  fontFamily: 'Staresso', // Matches pubspec family name
+                  fontFamily: 'Staresso',
                   fontSize: 64,
-                  color: Color(0xFFD85C7B),
+                  color: colors.heading,
                   height: 1.0,
                 ),
               ),
 
               const SizedBox(height: 50),
 
-              // Tagline - Satoshi Medium (600)
-              const Text(
+              // --- TAGLINE ---
+              Text(
                 'A gentle companion for your\nmonthly rhythm.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Satoshi',
                   fontSize: 18,
-                  fontWeight: FontWeight.w500, // Linked to Medium per your setup
-                  color: Color(0xFF8D5A6A),
+                  fontWeight: FontWeight.w500,
+                  color: colors.textPrimary,
                 ),
               ),
 
               const SizedBox(height: 30),
 
-              // Description - Satoshi Regular (300)
-              const Text(
-                'Sakhi is here to help you track your cycle,\nunderstand your hormones, and feel cared\nfor through every phase.',
+              // --- DESCRIPTION ---
+              Text(
+                'Sakhi is here to help you track your cycle,\n'
+                    'understand your hormones, and feel cared\n'
+                    'for through every phase.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Satoshi',
                   fontSize: 16,
                   height: 1.5,
-                  fontWeight: FontWeight.w400, // Linked to Regular per your setup
-                  color: Color(0xFFB57E8F),
+                  fontWeight: FontWeight.w400,
+                  color: colors.textPrimary,
                 ),
               ),
 
               const Spacer(flex: 1),
 
-              // Get Started Button - Satoshi Medium (500)
-// Get Started Button
+              // --- GET STARTED BUTTON ---
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Navigate to Signup Screen
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const SignupScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const SignupScreen(),
+                      ),
                     );
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFD85C7B),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    elevation: 0,
-                  ),
                   child: const Text(
                     'Get Started',
                     style: TextStyle(
                       fontFamily: 'Satoshi',
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -113,32 +111,33 @@ class WelcomePage extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // Login footer
+              // --- LOGIN FOOTER ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
+                  Text(
                     'Already have an account? ',
                     style: TextStyle(
                       fontFamily: 'Satoshi',
                       fontWeight: FontWeight.w400,
-                      color: Color(0xFFAC7F89),
+                      color: colors.textPrimary,
                     ),
                   ),
                   GestureDetector(
                     onTap: () {
-                      // Navigate to Login Screen
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
                       );
                     },
-                    child: const Text(
+                    child: Text(
                       'Log in',
                       style: TextStyle(
                         fontFamily: 'Satoshi',
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFFD66B81),
+                        color: colors.button,
                         decoration: TextDecoration.underline,
                       ),
                     ),
