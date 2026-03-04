@@ -33,7 +33,7 @@ class AuthService {
           throw Exception("This Google account is already registered. Please login.");
         }
       } else {
-        // If logging in but email NOT found -> STOP (No auto-creation)
+
         if (!userExists) {
           await _googleSignIn.signOut();
           throw Exception("No account found with this Gmail. Please sign up first.");
