@@ -6,7 +6,7 @@ import '../../core/theme/theme.dart';
 import '../cycles_tab/phase_transition_screen.dart';
 import 'onboarding_screen.dart';
 import 'signup_screen.dart';
-import 'controllers/auth_service.dart';
+import '../../core/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -37,103 +37,136 @@ class _LoginScreenState extends State<LoginScreen> {
   // ================= LOGIC HANDLERS =================
 
   Future<bool> _isOnboardingDone() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return false;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
+      // Use a try-catch specifically here to stop the red error box
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
 
-    return doc.data()?['onboardingComplete'] == true;
+      if (doc.exists) {
+        // Check if the flag exists, otherwise assume false
+        return doc.data()?['onboardingComplete'] == true;
+      }
+      return false; // Document doesn't exist, send to onboarding
+    } catch (e) {
+      debugPrint("Permission or Read Error: $e");
+      return false; // If permission is denied, safe-fail to onboarding
+    }
   }
 
   Future<void> _handleEmailLogin() async {
-    setState(() {
-      _emailError = null;
-      _passwordError = null;
-    });
+    setState(() { _emailError = null; _passwordError = null; });
 
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    bool hasError = false;
+    if (email.isEmpty || password.isEmpty) return;
 
-    final emailRegex =
-    RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-
-    if (email.isEmpty) {
-      _emailError = "Email is required";
-      hasError = true;
-    } else if (!emailRegex.hasMatch(email)) {
-      _emailError = "Please enter a valid email";
-      hasError = true;
-    }
-
-    if (password.isEmpty) {
-      _passwordError = "Password is required";
-      hasError = true;
-    }
-
-    if (hasError) {
-      setState(() {});
-      return;
-    }
-
-    FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
 
     try {
-      await _authService.loginWithEmail(
-        email: email,
-        password: password,
+      // 1. Perform Login
+      UserCredential credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email,
+          password: password
       );
 
+      // 2. FORCE a token refresh to make sure Firestore knows who we are
+      await credential.user?.getIdToken(true);
+
+      // 3. Double check verification
+      if (!credential.user!.emailVerified) {
+        await FirebaseAuth.instance.signOut();
+        _snack("Please verify your email first!");
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // 4. Check onboarding status ONLY after we are 100% sure we have a UID
       final isDone = await _isOnboardingDone();
 
       if (!mounted) return;
-
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(
-          builder: (_) =>
-          isDone
-              ? const PhaseTransitionScreen()
-              : const OnboardingScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => isDone ? const PhaseTransitionScreen() : const OnboardingScreen()),
             (_) => false,
       );
+    } on FirebaseException catch (e) {
+      _snack("Firebase Error: ${e.code} - ${e.message}");
     } catch (e) {
-      _snack(e.toString().replaceAll("Exception: ", ""));
+      _snack("Login Error: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _handleGoogleLogin() async {
-    FocusScope.of(context).unfocus();
-    setState(() => _isLoading = true);
+  void _showForgotPasswordDialog() {
+    final TextEditingController resetController = TextEditingController();
 
-    try {
-      await _authService.signInWithGoogle(isSignUp: false);
-
-      final isDone = await _authService.isOnboardingDone();
-
-      if (!mounted) return;
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-          isDone ? const PhaseTransitionScreen() : const OnboardingScreen(),
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: appColors.background,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          "Reset Password",
+          style: TextStyle(fontFamily: 'Satoshi', color: appColors.heading),
         ),
-            (route) => false,
-      );
-    } catch (e) {
-      _snack(e.toString().replaceAll("Exception: ", ""));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Enter your email and we'll send you a reset link.",
+              style: TextStyle(fontFamily: 'Satoshi', color: appColors.textPrimary),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: resetController,
+              decoration: InputDecoration(
+                hintText: "Email address",
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide(color: appColors.inputFieldBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide(color: appColors.button),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Cancel", style: TextStyle(color: appColors.textPrimary)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final email = resetController.text.trim();
+              if (email.isNotEmpty) {
+                try {
+                  await _authService.sendPasswordReset(email);
+                  Navigator.pop(context);
+                  _snack("Reset link sent! Check your email.");
+                } catch (e) {
+                  _snack("Error: ${e.toString()}");
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: appColors.button,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text("Send", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   // ================= UI =================
@@ -143,116 +176,129 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       backgroundColor: appColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 25.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 60),
-              Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    "Welcome Back",
-                    style: TextStyle(
-                      fontFamily: 'Satoshi',
-                      fontSize: 40,
-                      fontWeight: FontWeight.w500,
-                      color: appColors.heading,
+              const SizedBox(height: 80),
+
+              // Matched Header with Signup Screen
+              Center(
+                child: Column(
+                  children: [
+                    Text(
+                      "Welcome back",
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        fontSize: 36,
+                        fontWeight: FontWeight.w500,
+                        color: appColors.heading,
+                        height: 1.1,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Image.asset(
-                    'assets/icons/sakhi icons/star 2.png',
-                    height: 28,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "Log in to bloom through your cycle phases.",
-                style: TextStyle(
-                  fontFamily: 'Satoshi',
-                  fontSize: 17,
-                  color: appColors.textPrimary,
+                    Text(
+                      "to Sakhi",
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        fontSize: 36,
+                        fontWeight: FontWeight.w500,
+                        color: appColors.heading,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Image.asset(
+                      'assets/icons/sakhi icons/star.png',
+                      height: 50,
+                    ),
+                  ],
                 ),
               ),
+
               const SizedBox(height: 40),
-              _label("Email address"),
+
+              // EMAIL INPUT
               _inputField(
                 _emailController,
+                hint: "Email address",
+                icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
                 errorText: _emailError,
               ),
-              const SizedBox(height: 20),
-              _label("Password"),
+
+              const SizedBox(height: 25),
+
+              // PASSWORD INPUT
               _inputField(
                 _passwordController,
+                hint: "Password",
+                icon: Icons.lock_outline,
                 obscure: _obscurePassword,
                 isPassword: true,
                 errorText: _passwordError,
-                onSuffixTap: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
+                onSuffixTap: () => setState(() => _obscurePassword = !_obscurePassword),
               ),
+
               const SizedBox(height: 15),
-              Row(
-                children: [
-                  Text(
-                    "Forgot Password? ",
+
+              Align(
+                alignment: Alignment.centerRight,
+                child: GestureDetector(
+                  onTap: _showForgotPasswordDialog,
+                  child: Text(
+                    "Forgot Password?",
                     style: TextStyle(
-                      color:
-                      appColors.textPrimary.withOpacity(0.6),
+                      color: appColors.button,
+                      fontWeight: FontWeight.w700,
                       fontSize: 14,
+                      fontFamily: 'Satoshi',
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () => _snack("Reset coming soon"),
-                    child: Text(
-                      "Reset",
-                      style: TextStyle(
-                        color: appColors.button,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
+
               const SizedBox(height: 40),
-              _buildPrimaryButton('Log in', _handleEmailLogin),
-              const SizedBox(height: 30),
+
+              // ACTIONS
+              _primaryButton('Log in', _handleEmailLogin),
+              const SizedBox(height: 15),
               _divider(),
-              const SizedBox(height: 30),
-              _googleButton(_handleGoogleLogin),
-              const SizedBox(height: 25),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Don’t have an account? ',
-                    style: TextStyle(
-                      color:
-                      appColors.textPrimary.withOpacity(0.7),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const SignupScreen(),
-                      ),
-                    ),
-                    child: Text(
-                      'Sign up',
+              const SizedBox(height: 15),
+              _googleButton(() => _authService.signInWithGoogle(isSignUp: false)),
+
+              const Spacer(),
+
+              // FOOTER
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Don’t have an account? ',
                       style: TextStyle(
-                        color: appColors.button,
-                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Satoshi',
+                        color: appColors.textPrimary.withOpacity(0.7),
                       ),
                     ),
-                  ),
-                ],
+                    GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SignupScreen()),
+                      ),
+                      child: Text(
+                        'Sign up',
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
+                          color: appColors.button,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -262,114 +308,103 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ================= UI HELPERS =================
 
-  Widget _label(String text) => Padding(
-    padding:
-    const EdgeInsets.only(bottom: 8.0, left: 4),
-    child: Text(
-      text,
-      style: TextStyle(
-        fontSize: 14,
-        fontFamily: 'Satoshi',
-        color: appColors.textPrimary,
-      ),
-    ),
-  );
-
   Widget _inputField(
       TextEditingController controller, {
+        required String hint,
+        required IconData icon,
         bool obscure = false,
         bool isPassword = false,
         VoidCallback? onSuffixTap,
         TextInputType? keyboardType,
         String? errorText,
       }) {
+    final bool isActive = controller.text.isNotEmpty;
+
     return TextField(
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
+      onChanged: (value) => setState(() {}),
       style: TextStyle(
         fontFamily: 'Satoshi',
         fontWeight: FontWeight.w500,
         color: appColors.textPrimary,
-        fontSize: 18,
+        fontSize: 16,
       ),
       decoration: InputDecoration(
-        errorText: errorText,
-        errorStyle: TextStyle(
-          fontFamily: 'Satoshi',
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: appColors.error,
+        hintText: hint,
+        hintStyle: TextStyle(
+          color: Colors.grey.withOpacity(0.6),
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
         ),
-        fillColor: Colors.white,
-        contentPadding:
-        const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 18, right: 12),
+          child: Icon(
+            icon,
+            color: isActive ? appColors.heading : Colors.grey.withOpacity(0.5),
+            size: 22,
+          ),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 30, vertical: 18),
+        errorText: errorText,
         suffixIcon: isPassword
-            ? IconButton(
-          onPressed: onSuffixTap,
-          icon: Icon(
-            obscure
-                ? Icons.visibility_off_outlined
-                : Icons.visibility_outlined,
-            color:
-            appColors.textPrimary.withOpacity(0.4),
-            size: 20,
+            ? Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: GestureDetector(
+            onTap: onSuffixTap,
+            child: Icon(
+              obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+              color: appColors.textPrimary.withOpacity(0.4),
+              size: 20,
+            ),
           ),
         )
             : null,
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide:
-          BorderSide(color: appColors.inputFieldBorder),
+          borderRadius: BorderRadius.circular(50),
+          borderSide: BorderSide(color: appColors.inputFieldBorder),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide:
-          BorderSide(color: appColors.button),
+          borderRadius: BorderRadius.circular(50),
+          borderSide: BorderSide(color: appColors.button, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide:
-          BorderSide(color: appColors.error),
+          borderRadius: BorderRadius.circular(50),
+          borderSide: BorderSide(color: appColors.error),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide:
-          BorderSide(color: appColors.error, width: 2),
+          borderRadius: BorderRadius.circular(50),
+          borderSide: BorderSide(color: appColors.error, width: 2),
         ),
       ),
     );
   }
 
-  Widget _buildPrimaryButton(
-      String text, VoidCallback onPressed) {
+  Widget _primaryButton(String text, VoidCallback onPressed) {
     return SizedBox(
       width: double.infinity,
-      height: 60,
+      height: 55,
       child: ElevatedButton(
         onPressed: _isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          elevation: 0,
           backgroundColor: appColors.button,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(25),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+          elevation: 0,
         ),
         child: _isLoading
             ? const SizedBox(
-          height: 24,
-          width: 24,
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 2,
-          ),
+          height: 20,
+          width: 20,
+          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
         )
             : Text(
           text,
           style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
             color: Colors.white,
+            fontFamily: 'Satoshi',
           ),
         ),
       ),
@@ -379,31 +414,25 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _googleButton(VoidCallback onPressed) {
     return SizedBox(
       width: double.infinity,
-      height: 60,
+      height: 55,
       child: OutlinedButton(
         onPressed: _isLoading ? null : onPressed,
         style: OutlinedButton.styleFrom(
-          side: BorderSide(
-            color: appColors.button.withOpacity(0.5),
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(25),
-          ),
+          side: BorderSide(color: appColors.button.withOpacity(0.5)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              'assets/icons/sakhi icons/google.png',
-              height: 22,
-            ),
+            Image.asset('assets/icons/sakhi icons/google.png', height: 20),
             const SizedBox(width: 12),
             Text(
               'Google',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 16,
                 color: appColors.button,
                 fontWeight: FontWeight.w500,
+                fontFamily: 'Satoshi',
               ),
             ),
           ],
@@ -414,50 +443,31 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _divider() => Row(
     children: [
-      Expanded(
-        child: Divider(
-          color:
-          appColors.inputFieldBorder.withOpacity(0.5),
-        ),
-      ),
+      Expanded(child: Divider(color: appColors.inputFieldBorder.withOpacity(0.5))),
       Padding(
-        padding:
-        const EdgeInsets.symmetric(horizontal: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Text(
-          "Or Continue with",
-          style: TextStyle(
-            color:
-            appColors.textPrimary.withOpacity(0.6),
-            fontSize: 12,
-          ),
+          "Or Continue With",
+          style: TextStyle(color: appColors.textPrimary.withOpacity(0.8), fontSize: 11),
         ),
       ),
-      Expanded(
-        child: Divider(
-          color:
-          appColors.inputFieldBorder.withOpacity(0.5),
-        ),
-      ),
+      Expanded(child: Divider(color: appColors.inputFieldBorder.withOpacity(0.5))),
     ],
   );
 
-  void _snack(String msg) {
-    if (!mounted) return;
+  void _snack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          msg,
-          style: const TextStyle(
-            fontFamily: 'Satoshi',
-            fontWeight: FontWeight.w500,
-          ),
+          message,
+          textAlign: TextAlign.center,
+          style: TextStyle(fontFamily: 'Satoshi', color: appColors.heading, fontWeight: FontWeight.w500),
         ),
-        backgroundColor: appColors.button,
+        backgroundColor: Colors.white,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        margin: const EdgeInsets.all(15),
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.symmetric(vertical: 20, horizontal: 30),
       ),
     );
   }
