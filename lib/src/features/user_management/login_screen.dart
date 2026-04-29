@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../../core/theme/theme.dart';
+import '../../core/theme/lockedcolors.dart';
 import '../cycles_tab/phase_transition_screen.dart';
 import 'onboarding_screen.dart';
 import 'signup_screen.dart';
@@ -41,20 +41,18 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;
 
-      // Use a try-catch specifically here to stop the red error box
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
 
       if (doc.exists) {
-        // Check if the flag exists, otherwise assume false
         return doc.data()?['onboardingComplete'] == true;
       }
-      return false; // Document doesn't exist, send to onboarding
+      return false;
     } catch (e) {
       debugPrint("Permission or Read Error: $e");
-      return false; // If permission is denied, safe-fail to onboarding
+      return false;
     }
   }
 
@@ -69,16 +67,13 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Perform Login
       UserCredential credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: email,
           password: password
       );
 
-      // 2. FORCE a token refresh to make sure Firestore knows who we are
       await credential.user?.getIdToken(true);
 
-      // 3. Double check verification
       if (!credential.user!.emailVerified) {
         await FirebaseAuth.instance.signOut();
         _snack("Please verify your email first!");
@@ -86,7 +81,6 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // 4. Check onboarding status ONLY after we are 100% sure we have a UID
       final isDone = await _isOnboardingDone();
 
       if (!mounted) return;
@@ -104,203 +98,194 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showForgotPasswordDialog() {
-    final TextEditingController resetController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: appColors.background,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          "Reset Password",
-          style: TextStyle(fontFamily: 'Satoshi', color: appColors.heading),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              "Enter your email and we'll send you a reset link.",
-              style: TextStyle(fontFamily: 'Satoshi', color: appColors.textPrimary),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: resetController,
-              decoration: InputDecoration(
-                hintText: "Email address",
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide(color: appColors.inputFieldBorder),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide(color: appColors.button),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Cancel", style: TextStyle(color: appColors.textPrimary)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final email = resetController.text.trim();
-              if (email.isNotEmpty) {
-                try {
-                  await _authService.sendPasswordReset(email);
-                  Navigator.pop(context);
-                  _snack("Reset link sent! Check your email.");
-                } catch (e) {
-                  _snack("Error: ${e.toString()}");
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: appColors.button,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text("Send", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ================= UI =================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: appColors.background,
+      backgroundColor: LockedColors.background,
+      // Prevents the background from squishing when keyboard appears
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 25.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 80),
+        child: SingleChildScrollView( // Wrap with ScrollView to prevent RenderFlex overflow
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 25.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 110),
 
-              // Matched Header with Signup Screen
-              Center(
-                child: Column(
-                  children: [
-                    Text(
-                      "Welcome back",
-                      style: TextStyle(
-                        fontFamily: 'Satoshi',
-                        fontSize: 36,
-                        fontWeight: FontWeight.w500,
-                        color: appColors.heading,
-                        height: 1.1,
+                Center(
+                  child: Column(
+                    children: [
+                      Text(
+                        "Welcome back",
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
+                          fontSize: 36,
+                          fontWeight: FontWeight.w500,
+                          color: LockedColors.heading,
+                          height: 1.1,
+                        ),
                       ),
-                    ),
-                    Text(
-                      "to Sakhi",
-                      style: TextStyle(
-                        fontFamily: 'Satoshi',
-                        fontSize: 36,
-                        fontWeight: FontWeight.w500,
-                        color: appColors.heading,
-                        height: 1.1,
+                      Text(
+                        "to Sakhi",
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
+                          fontSize: 36,
+                          fontWeight: FontWeight.w500,
+                          color: LockedColors.heading,
+                          height: 1.1,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                    Image.asset(
-                      'assets/icons/sakhi icons/star.png',
-                      height: 50,
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+                      Image.asset(
+                        'assets/icons/sakhi icons/star.png',
+                        height: 50,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
 
-              const SizedBox(height: 40),
+                const SizedBox(height: 40),
 
-              // EMAIL INPUT
-              _inputField(
-                _emailController,
-                hint: "Email address",
-                icon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-                errorText: _emailError,
-              ),
+                _inputField(
+                  _emailController,
+                  hint: "Email address",
+                  icon: Icons.email_outlined,
+                  keyboardType: TextInputType.emailAddress,
+                  errorText: _emailError,
+                ),
 
-              const SizedBox(height: 25),
+                const SizedBox(height: 25),
 
-              // PASSWORD INPUT
-              _inputField(
-                _passwordController,
-                hint: "Password",
-                icon: Icons.lock_outline,
-                obscure: _obscurePassword,
-                isPassword: true,
-                errorText: _passwordError,
-                onSuffixTap: () => setState(() => _obscurePassword = !_obscurePassword),
-              ),
+                _inputField(
+                  _passwordController,
+                  hint: "Password",
+                  icon: Icons.lock_outline,
+                  obscure: _obscurePassword,
+                  isPassword: true,
+                  errorText: _passwordError,
+                  onSuffixTap: () => setState(() => _obscurePassword = !_obscurePassword),
+                ),
 
-              const SizedBox(height: 15),
+                const SizedBox(height: 15),
 
-              Align(
-                alignment: Alignment.centerRight,
-                child: GestureDetector(
-                  onTap: _showForgotPasswordDialog,
-                  child: Text(
-                    "Forgot Password?",
-                    style: TextStyle(
-                      color: appColors.button,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      fontFamily: 'Satoshi',
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: GestureDetector(
+                    onTap: () async {
+                      final email = _emailController.text.trim();
+
+                      if (email.isEmpty) {
+                        _snack("Please enter your email address above first.");
+                        return;
+                      }
+
+                      try {
+                        setState(() => _isLoading = true);
+
+                        final userExists =
+                        await _authService.checkUserExists(email);
+
+                        if (!userExists) {
+                          _snack(
+                            "No account found with this email.",
+                          );
+                          return;
+                        }
+
+                        await _authService.sendPasswordReset(email);
+
+                        _snack(
+                          "Reset link sent! Check your email.",
+                        );
+
+                      } catch (e) {
+                        _snack("Error: ${e.toString()}");
+                      } finally {
+                        setState(() => _isLoading = false);
+                      }
+                    },
+                    child: Text(
+                      "Forgot Password?",
+                      style: TextStyle(
+                        color: LockedColors.button,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        fontFamily: 'Satoshi',
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 40),
+                const SizedBox(height: 30),
 
-              // ACTIONS
-              _primaryButton('Log in', _handleEmailLogin),
-              const SizedBox(height: 15),
-              _divider(),
-              const SizedBox(height: 15),
-              _googleButton(() => _authService.signInWithGoogle(isSignUp: false)),
+                _primaryButton('Log in', _handleEmailLogin),
+                const SizedBox(height: 15),
+                _divider(),
+                const SizedBox(height: 15),
+                _googleButton(() async {
+                  setState(() => _isLoading = true);
+                  try {
+                    final user = await _authService.signInWithGoogle(isSignUp: false);
 
-              const Spacer(),
+                    if (user != null) {
+                      // Check onboarding status before navigating
+                      final isDone = await _isOnboardingDone();
 
-              // FOOTER
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Don’t have an account? ',
-                      style: TextStyle(
-                        fontFamily: 'Satoshi',
-                        color: appColors.textPrimary.withOpacity(0.7),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.push(
+                      if (!mounted) return;
+
+                      Navigator.pushAndRemoveUntil(
                         context,
-                        MaterialPageRoute(builder: (_) => const SignupScreen()),
-                      ),
-                      child: Text(
-                        'Sign up',
-                        style: TextStyle(
-                          fontFamily: 'Satoshi',
-                          color: appColors.button,
-                          fontWeight: FontWeight.bold,
+                        MaterialPageRoute(
+                            builder: (_) => isDone ? const PhaseTransitionScreen() : const OnboardingScreen()
                         ),
-                      ),
-                    ),
-                  ],
+                            (_) => false,
+                      );
+                    }
+                  } catch (e) {
+                    _snack(e.toString().replaceAll("Exception: ", ""));
+                  } finally {
+                    if (mounted) setState(() => _isLoading = false);
+                  }
+                }),
+
+                // Extra space to ensure content doesn't hit the bottom bar
+                const SizedBox(height: 40),
+              ],
+            ),
+          ),
+        ),
+      ),
+      // STICKY FOOTER
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Don’t have an account? ',
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: LockedColors.textPrimary.withOpacity(0.7),
+              ),
+            ),
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SignupScreen()),
+              ),
+              child: Text(
+                'Sign up',
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: LockedColors.button,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -318,36 +303,49 @@ class _LoginScreenState extends State<LoginScreen> {
         TextInputType? keyboardType,
         String? errorText,
       }) {
+    // Triggers the pink heading color when user starts typing
     final bool isActive = controller.text.isNotEmpty;
 
     return TextField(
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
+      // Triggers rebuild to update icon color in real-time
       onChanged: (value) => setState(() {}),
       style: TextStyle(
         fontFamily: 'Satoshi',
         fontWeight: FontWeight.w500,
-        color: appColors.textPrimary,
+        color: LockedColors.textPrimary,
         fontSize: 16,
       ),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(
-          color: Colors.grey.withOpacity(0.6),
+          // Using textPrimary with opacity instead of generic grey
+          color: LockedColors.textPrimary.withOpacity(0.4),
           fontSize: 15,
           fontWeight: FontWeight.w400,
         ),
+
+        // Optional: Adds a very subtle fill to the field
+        filled: true,
+        fillColor: LockedColors.background,
+
         prefixIcon: Padding(
           padding: const EdgeInsets.only(left: 18, right: 12),
           child: Icon(
             icon,
-            color: isActive ? appColors.heading : Colors.grey.withOpacity(0.5),
+            // Switches from a soft tint to your main Pink (heading) when active
+            color: isActive
+                ? LockedColors.heading
+                : LockedColors.textPrimary.withOpacity(0.3),
             size: 22,
           ),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 30, vertical: 18),
+
+        contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
         errorText: errorText,
+
         suffixIcon: isPassword
             ? Padding(
           padding: const EdgeInsets.only(right: 12),
@@ -355,27 +353,41 @@ class _LoginScreenState extends State<LoginScreen> {
             onTap: onSuffixTap,
             child: Icon(
               obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-              color: appColors.textPrimary.withOpacity(0.4),
+              color: LockedColors.textPrimary.withOpacity(0.4),
               size: 20,
             ),
           ),
         )
             : null,
+
+        // --- BORDERS USING LOCKEDCOLORS ---
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(50),
-          borderSide: BorderSide(color: appColors.inputFieldBorder),
+          borderSide: BorderSide(
+            color: LockedColors.inputFieldBorder,
+            width: 1,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(50),
-          borderSide: BorderSide(color: appColors.button, width: 1.5),
+          borderSide: BorderSide(
+            color: LockedColors.button, // Your pink button color
+            width: 1.5,
+          ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(50),
-          borderSide: BorderSide(color: appColors.error),
+          borderSide: BorderSide(
+            color: LockedColors.error,
+            width: 1,
+          ),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(50),
-          borderSide: BorderSide(color: appColors.error, width: 2),
+          borderSide: BorderSide(
+            color: LockedColors.error,
+            width: 2,
+          ),
         ),
       ),
     );
@@ -384,11 +396,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _primaryButton(String text, VoidCallback onPressed) {
     return SizedBox(
       width: double.infinity,
-      height: 55,
+      height: 50,
       child: ElevatedButton(
         onPressed: _isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: appColors.button,
+          backgroundColor: LockedColors.button,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
           elevation: 0,
         ),
@@ -402,7 +414,7 @@ class _LoginScreenState extends State<LoginScreen> {
           text,
           style: const TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w700,
             color: Colors.white,
             fontFamily: 'Satoshi',
           ),
@@ -414,11 +426,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _googleButton(VoidCallback onPressed) {
     return SizedBox(
       width: double.infinity,
-      height: 55,
+      height: 50,
       child: OutlinedButton(
         onPressed: _isLoading ? null : onPressed,
         style: OutlinedButton.styleFrom(
-          side: BorderSide(color: appColors.button.withOpacity(0.5)),
+          side: BorderSide(color: LockedColors.button.withOpacity(0.5)),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
         ),
         child: Row(
@@ -430,8 +442,8 @@ class _LoginScreenState extends State<LoginScreen> {
               'Google',
               style: TextStyle(
                 fontSize: 16,
-                color: appColors.button,
-                fontWeight: FontWeight.w500,
+                color: LockedColors.heading,
+                fontWeight: FontWeight.w700,
                 fontFamily: 'Satoshi',
               ),
             ),
@@ -443,15 +455,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _divider() => Row(
     children: [
-      Expanded(child: Divider(color: appColors.inputFieldBorder.withOpacity(0.5))),
+      Expanded(child: Divider(color: LockedColors.inputFieldBorder.withOpacity(0.5))),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Text(
           "Or Continue With",
-          style: TextStyle(color: appColors.textPrimary.withOpacity(0.8), fontSize: 11),
+          style: TextStyle(color: LockedColors.textPrimary.withOpacity(0.8), fontSize: 11),
         ),
       ),
-      Expanded(child: Divider(color: appColors.inputFieldBorder.withOpacity(0.5))),
+      Expanded(child: Divider(color: LockedColors.inputFieldBorder.withOpacity(0.5))),
     ],
   );
 
@@ -461,7 +473,7 @@ class _LoginScreenState extends State<LoginScreen> {
         content: Text(
           message,
           textAlign: TextAlign.center,
-          style: TextStyle(fontFamily: 'Satoshi', color: appColors.heading, fontWeight: FontWeight.w500),
+          style: TextStyle(fontFamily: 'Satoshi', color: LockedColors.heading, fontWeight: FontWeight.w500),
         ),
         backgroundColor: Colors.white,
         behavior: SnackBarBehavior.floating,
