@@ -1,18 +1,34 @@
-// lib/src/features/user_management/welcome_page.dart
 import 'package:flutter/material.dart';
+import '../../core/services/deep_link_service.dart';
 import 'signup_screen.dart';
 import 'login_screen.dart';
-import '../../core/theme/theme.dart';
+import '../../core/theme/lockedcolors.dart';
 
-class WelcomePage extends StatelessWidget {
+
+class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
 
   @override
+  State<WelcomePage> createState() => _WelcomePageState();
+}
+
+class _WelcomePageState extends State<WelcomePage> {
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      DeepLinkService.instance.handlePendingLink();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final colors = appColors;
+    final colors = LockedColors; // 👈 FIXED
 
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: LockedColors.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 30.0),
@@ -29,10 +45,9 @@ class WelcomePage extends StatelessWidget {
                   'assets/icons/sakhi icons/sakhi.png',
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) {
-                    // Uses the error color defined in your theme
                     return Icon(
                       Icons.error,
-                      color: colors.error,
+                      color: LockedColors.error,
                       size: 50,
                     );
                   },
@@ -47,7 +62,7 @@ class WelcomePage extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'Staresso',
                   fontSize: 64,
-                  color: colors.heading,
+                  color: LockedColors.heading,
                   height: 1.0,
                 ),
               ),
@@ -62,7 +77,7 @@ class WelcomePage extends StatelessWidget {
                   fontFamily: 'Satoshi',
                   fontSize: 18,
                   fontWeight: FontWeight.w500,
-                  color: colors.textPrimary,
+                  color: LockedColors.textPrimary,
                 ),
               ),
 
@@ -79,7 +94,7 @@ class WelcomePage extends StatelessWidget {
                   fontSize: 16,
                   height: 1.5,
                   fontWeight: FontWeight.w400,
-                  color: colors.textPrimary,
+                  color: LockedColors.textPrimary,
                 ),
               ),
 
@@ -88,7 +103,7 @@ class WelcomePage extends StatelessWidget {
               // --- GET STARTED BUTTON ---
               SizedBox(
                 width: double.infinity,
-                height: 56,
+                height: 50,
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.push(
@@ -98,13 +113,26 @@ class WelcomePage extends StatelessWidget {
                       ),
                     );
                   },
-                  child: const Text(
-                    'Get Started',
-                    style: TextStyle(
-                      fontFamily: 'Satoshi',
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: LockedColors.button,
+                    foregroundColor: LockedColors.background,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(50),
                     ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Get Started',
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -120,7 +148,7 @@ class WelcomePage extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'Satoshi',
                       fontWeight: FontWeight.w400,
-                      color: colors.textPrimary,
+                      color: LockedColors.textPrimary,
                     ),
                   ),
                   GestureDetector(
@@ -137,13 +165,13 @@ class WelcomePage extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'Satoshi',
                         fontWeight: FontWeight.w600,
-                        color: colors.button,
-                        decoration: TextDecoration.underline,
+                        color: LockedColors.button,
                       ),
                     ),
                   ),
                 ],
               ),
+
               const SizedBox(height: 20),
             ],
           ),
